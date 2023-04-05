@@ -3,17 +3,15 @@ use std::fs;
 use std::str;
 use uuid::Uuid;
 use serde::{Serialize, Deserialize};
+use rand::Rng;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
-    let mut vault = Vault::new();
+    let mut vault = Vault::struct_from_file("Test.json");
 
-    vault.add_credential(Credential::new("Steam", "Eldoritto", "123321852@", "https://store.steampowered.com/"));
-    vault.add_credential(Credential::new("Epic", "BB-8", "123211312@", "https://store.epicgames.com/en-US/"));
-    vault.add_note(Note::new("Test", "This is a test note"));
-
-    vault.credentials[1].name = "Epic Games".to_string();
+    vault.sort_credentials();
+    
     vault.to_file("Test.json");
 }
 
@@ -31,6 +29,7 @@ struct Vault{
 struct Credential{
     id: String,
     name: String,
+    favorite: bool,
     username: String,
     password: String,
     url: String,
@@ -41,6 +40,7 @@ impl Credential{
         return Credential{
             id: Uuid::new_v4().to_string(),
             name: name.to_string(),
+            favorite: false,
             username: username.to_string(),
             password: password.to_string(),
             url: url.to_string(),
@@ -52,6 +52,7 @@ impl Credential{
 struct Note{
     id: String,
     name: String,
+    favorite: bool,
     content: String,
 }
 
@@ -60,6 +61,7 @@ impl Note{
         return Note{
             id: Uuid::new_v4().to_string(),
             name: name.to_string(),
+            favorite: false,
             content: content.to_string(),
         }
     }
@@ -76,6 +78,7 @@ impl Vault{
             version: VERSION.to_string(),
         }
     }
+
     fn struct_from_file(s: &str) -> Self{
         let path = env::current_dir().unwrap();
         let path = path.join(s);
@@ -85,6 +88,7 @@ impl Vault{
         let vault: Vault = serde_json::from_str(&contents).unwrap();
         return vault
     }
+
     fn to_file(&self, s: &str){
         let path = env::current_dir().unwrap();
         let path = path.join(s);
@@ -92,10 +96,82 @@ impl Vault{
         let serialized = serde_json::to_string(self).unwrap();
         fs::write(&path, &serialized).expect("Unable to write file");
     }
+
     fn add_credential(&mut self, credential: Credential){
         self.credentials.push(credential);
     }
+
     fn add_note(&mut self, note: Note){
         self.notes.push(note);
+    }
+
+    fn sort_credentials(&mut self){
+        self.credentials.sort_by(|a, b| {
+            if a.favorite && !b.favorite{
+                return std::cmp::Ordering::Less;
+            }
+            else if !a.favorite && b.favorite{
+                return std::cmp::Ordering::Greater;
+            }
+            else{
+                return a.name.cmp(&b.name);
+            }
+        });
+    }
+
+    fn sort_notes(&mut self){
+        self.notes.sort_by(|a, b| {
+            if a.favorite && !b.favorite{
+                return std::cmp::Ordering::Less;
+            }
+            else if !a.favorite && b.favorite{
+                return std::cmp::Ordering::Greater;
+            }
+            else{
+                return a.name.cmp(&b.name);
+            }
+        });
+    }
+    
+    fn find_credential(&self, id: &str) -> Option<usize>{
+        for (index, credential) in self.credentials.iter().enumerate(){
+            if credential.id == id{
+                return Some(index);
+            }
+        }
+        return None;
+    }
+
+    fn find_note(&self, id: &str) -> Option<usize>{
+        for (index, note) in self.notes.iter().enumerate(){
+            if note.id == id{
+                return Some(index);
+            }
+        }
+        return None;
+    }
+
+    fn remove_credential_by_id(&mut self, id: &str) -> Result<(), String>{
+        match self.find_credential(id){
+            Some(index) => {
+                self.credentials.remove(index);
+                return Ok(());
+            },
+            None => {
+                return Err("Credential not found".to_string());
+            }
+        }
+    }
+    
+    fn remove_note_by_id(&mut self, id: &str) -> Result<(), String>{
+        match self.find_note(id){
+            Some(index) => {
+                self.notes.remove(index);
+                return Ok(());
+            },
+            None => {
+                return Err("Note not found".to_string());
+            }
+        }
     }
 }
